@@ -1,0 +1,188 @@
+---
+title: "Juvenile Survival Power Analysis"
+author:
+- Ryan N. Kinzer:
+    email: ryank@nezperce.org
+    institute: npt_mccall
+    correspondence: yes
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  bookdown::html_document2:
+    theme: cerulean
+    toc: yes
+    toc_depth: 3
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+    number_sections: yes
+    css: "../templates/styles.css"
+    pandoc_args:
+    - "--lua-filter=../templates/scholarly-metadata.lua"
+    - "--lua-filter=../templates/author-info-blocks.lua"
+    - "--lua-filter=../templates/pagebreak.lua"
+institute:
+- npt_mccall: Nez Perce Tribe, Department of Fisheries Resources Management, 14054 Burr Dr., McCall, Idaho, 83638, USA
+csl: "../templates/american-fisheries-society.csl"
+#bibliography: hatchery_model.bib
+always_allow_html: yes
+---
+
+<!-- the following inserts the NPT logo into header and sets a watermark -->
+```{=html}
+<!-- <script> -->
+<!--    $(document).ready(function() { -->
+<!--      $head = $('#header'); -->
+<!--      $head.prepend('<img src=\"NPT.png\" style=\"float: right;width: 150px;\"/>') -->
+<!--      $head.prepend('<img src=\"DFRM.png\" style=\"float: right;width: 150px;\"/>') -->
+<!--    }); -->
+<!-- </script> -->
+
+<!-- <style> -->
+<!-- p.caption { -->
+<!--   font-size: 100%; -->
+<!-- } -->
+<!-- </style> -->
+
+
+<img src="NPT.png" style="position:absolute;top:0px;right:150px;width: 150px;" />
+<img src="DFRM.png" style="position:absolute;top:0px;right:0px;width: 150px;" />
+<div class="watermark">DRAFT</div>
+```
+
+
+```{r setup, echo = FALSE, message = FALSE, warning=FALSE}
+# style.css - https://freerangestats.info/blog/2017/09/09/rmarkdown
+
+
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  echo = FALSE,
+  comment = "#>",
+  fig.path = "../figures/",
+  dpi = 600,
+  fig.width = 7,
+  fig.height = 5,
+  fig.align = 'center'
+)
+
+options(knitr.kable.NA = '--')
+```
+
+```{r load-pkgs}
+library(knitr)
+library(kableExtra)
+library(tidyverse)
+```
+
+```{r load-data}
+dat <- readRDS(file = '../data/power_analysis/juv_survival_power.rds')
+```
+
+
+# Methods
+
+```{r params}
+# Define parameters
+mark_size <- seq(100, 1500, by=100)  # Varying mark-release sizes
+phi1 <- 0.65  # Survival from marking to 1st recapture (time = 1, occ = 1)
+phi2 <- 0.35 # Survival from 1st to 2nd recapture
+phi3 <- .60
+p2 <- 0.10    # Detection probability at 1st recapture
+p3 <- 0.20    # Detection probability at 2nd recapture
+p4 <- 0.50
+```
+
+```{r param-table}
+df_param <- tibble('Parameter' = c("$\\phi_1$", "$\\phi_2$", "$\\phi_3$", "$p_2$", "$p_3$", "$p_4$"),
+                   'True Value' = c(phi1, phi2, phi3, p2, p3, p4))
+
+df_param %>%
+  kable(escape = FALSE) %>%  # escape = FALSE allows LaTeX/HTML math rendering
+  kable_styling(bootstrap_options = 'striped')
+
+```
+
+# Results
+
+```{r sur-caption}
+# subtitle_text <- as.character(bquote("Simulated survival estimates of juveniles to IPTDS and Lower Granite Dam; " ~ 
+#                           phi[1] == .(phi1) ~ ", " ~ 
+#                           phi[2] == .(phi2) ~ ", " ~ 
+#                           rho[2] == .(p2) ~ ", and " ~ 
+#                           rho[3] == .(p3)))
+
+# Use LaTeX-compatible string formatting for the figure caption
+subtitle_text <- "$\\text{Simulated survival estimates of juveniles to IPTDS and Lower Granite Dam;} \\, \\phi_1 = "
+subtitle_text <- str_wrap(paste0(subtitle_text, phi1, ", \\phi_2 = ", phi2, ", \\rho_2 = ", p2, ", \\text{ and } \\rho_3 = ", p3, "$"),60)
+
+```
+
+
+```{r surv-ests, fig.cap = subtitle_text} 
+#'Simulated survival estimates of juveniles to IPTDS and Lower Granite Dam.'}
+## survival
+dat %>%
+  filter(param == 'Phi',
+         time %in% c(1,2)) %>%
+  ggplot(aes(x = as.factor(n), y = estimate)) +
+    geom_boxplot() +
+    geom_hline(aes(yintercept = actual), colour = 'firebrick') +
+  facet_wrap(~period, nrow = 2) + 
+  labs(#subtitle = wrapped_subtitle,
+       x = 'Tags Released',
+       y = 'Survival Probability')
+```
+
+```{r det-caption}
+subtitle_text <- as.character(bquote("Simulated detection estimates of juveniles at IPTDS and Lower Granite Dam; " ~ 
+                          rho[2] == .(p2) ~ ", and " ~ 
+                          rho[3] == .(p3)))
+subtitle_text <- "$\\text{Simulated detection estimates of juveniles at IPTDS and Lower Granite Dam;} \\, \\rho_2 = "
+subtitle_text <- str_wrap(paste0(subtitle_text, p2, ", \\rho_3 = ", p3, "$"),60)
+```
+
+
+```{r det-ests, fig.cap= subtitle_text}
+#'Simulated detection estimates of juveniles at IPTDS and Lower Granite Dam.'}
+## detection
+dat %>%
+  filter(param == 'p',
+         time %in% c(2,3)) %>%
+  ggplot(aes(x = as.factor(n), y = estimate)) +
+  geom_boxplot() +
+  geom_hline(aes(yintercept = actual), colour = 'firebrick') +
+  facet_wrap(~period, nrow = 2) + 
+  labs(#subtitle = wrapped_subtitle,
+       x = 'Tags Released',
+       y = 'Detection Probability')
+
+df_sum <- dat %>%
+  group_by(param, time, occ, period, n) %>%
+  summarise(valid_sims = n_distinct(iter),
+            actual = mean(actual),
+            mu_estimate = mean(estimate),
+            sd_estimate = sd(estimate),
+            cv = sd_estimate/mu_estimate,
+            bias = mu_estimate - actual) %>%
+  ungroup()
+```
+
+
+```{r precision, fig.cap = 'Coefficient of variation around survival estimates.'}
+## precision
+df_sum %>%
+  filter(param == 'Phi',
+         time %in% c(1,2)) %>%
+  ggplot(aes(x = as.factor(n), y = cv, group = period)) +
+  geom_line() +
+  geom_hline(yintercept = 0.15, colour = 'dodgerblue') +
+  facet_wrap(~period) + 
+  labs(#subtitle = 'Coefficient of variation around survival estimates.',
+       x = 'Tags Released',
+       y = 'Coefficient of Variation')
+```
+
+
+
