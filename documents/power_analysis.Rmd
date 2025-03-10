@@ -76,11 +76,6 @@ library(kableExtra)
 library(tidyverse)
 ```
 
-```{r load-data}
-dat <- readRDS(file = '../data/power_analysis/juv_survival_power.rds')
-```
-
-
 # Methods
 
 ```{r params}
@@ -112,6 +107,124 @@ df_param %>%
 
 # Results
 
+## Marking to Lower Granite Dam Only
+
+```{r load-lgd}
+lgd <- readRDS(file = '../data/power_analysis/LGD_survival_power.rds')
+```
+
+```{r n-labels}
+labels <- ifelse(seq_along(unique(lgd$n)) %% 2 == 0, "", unique(lgd$n))
+```
+
+
+```{r lgd-power}
+lgd_sum <- lgd %>%
+  group_by(param, time, occ, period, n) %>%
+  summarise(valid_sims = n_distinct(iter),
+            actual = mean(actual),
+            mu_estimate = mean(estimate),
+            sd_estimate = sd(estimate),
+            cv = sd_estimate/mu_estimate,
+            bias = mu_estimate - actual) %>%
+  ungroup()
+
+subtitle_text <- "$\\text{Coefficient of variation (CV) of simulated survival estimates to Lower Granite Dam only. The blue line indicates a CV = 0.15}"
+subtitle_text <- str_wrap(paste0(subtitle_text,".$"),60)
+```
+
+
+```{r lgd-precision, fig.cap = subtitle_text}
+## precision
+lgd_sum %>%
+  filter(param == 'Phi',
+         time %in% c(1)) %>%
+  ggplot(aes(x = as.factor(n), y = cv, group = period)) +
+  geom_line() +
+  geom_hline(yintercept = 0.15, colour = 'dodgerblue') +
+  scale_x_discrete(labels = labels) +
+  facet_wrap(~period, ncol = 2) + 
+  labs(#subtitle = 'Coefficient of variation around survival estimates.',
+       x = 'Tags Released',
+       y = 'Coefficient of Variation')
+```
+
+
+
+```{r load-iptds, eval = FALSE}
+## Single In-stream Detection Location
+iptds <- readRDS(file = '../data/power_analysis/IPTDS_survival_power.rds')
+```
+
+
+```{r iptds-power, eval = FALSE}
+iptds_sum <- iptds %>%
+  group_by(param, time, occ, period, n) %>%
+  summarise(valid_sims = n_distinct(iter),
+            actual = mean(actual),
+            mu_estimate = mean(estimate),
+            sd_estimate = sd(estimate),
+            cv = sd_estimate/mu_estimate,
+            bias = mu_estimate - actual) %>%
+  ungroup()
+
+subtitle_text <- "$\\text{Coefficient of variation (CV) of simulated survival estimates to a single IPTDS and Lower Granite Dam only. The blue line indicates a CV = 0.15}"
+subtitle_text <- str_wrap(paste0(subtitle_text,".$"),60)
+```
+
+
+```{r iptds-precision, eval = FALSE, fig.cap = subtitle_text}
+## precision
+iptds_sum %>%
+  filter(param == 'Phi',
+         time %in% c(1, 2)) %>%
+  ggplot(aes(x = as.factor(n), y = cv, group = period)) +
+  geom_line() +
+  geom_hline(yintercept = 0.15, colour = 'dodgerblue') +
+  scale_x_discrete(labels = labels) +
+  facet_wrap(~period, ncol = 2) + 
+  labs(#subtitle = 'Coefficient of variation around survival estimates.',
+       x = 'Tags Released',
+       y = 'Coefficient of Variation')
+```
+
+## Two In-stream Detection Locations
+
+```{r load-data}
+dat <- readRDS(file = '../data/power_analysis/juv_survival_power.rds')
+```
+
+```{r summarize}
+df_sum <- dat %>%
+  group_by(param, time, occ, period, n) %>%
+  summarise(valid_sims = n_distinct(iter),
+            actual = mean(actual),
+            mu_estimate = mean(estimate),
+            sd_estimate = sd(estimate),
+            cv = sd_estimate/mu_estimate,
+            bias = mu_estimate - actual) %>%
+  ungroup()
+
+subtitle_text <- "$\\text{Coefficient of variation (CV) of simulated survival estimates to two IPTDS locations and Lower Granite Dam. The blue line indicates a CV = 0.15}"
+subtitle_text <- str_wrap(paste0(subtitle_text,".$"),60)
+```
+
+
+```{r precision, fig.cap = subtitle_text}
+## precision
+df_sum %>%
+  filter(param == 'Phi',
+         time %in% c(1, 2, 3)) %>%
+  ggplot(aes(x = as.factor(n), y = cv, group = period)) +
+  geom_line() +
+  geom_hline(yintercept = 0.15, colour = 'dodgerblue') +
+  scale_x_discrete(labels = labels) +
+  facet_wrap(~period, ncol = 2) + 
+  labs(#subtitle = 'Coefficient of variation around survival estimates.',
+       x = 'Tags Released',
+       y = 'Coefficient of Variation')
+```
+
 ```{r sur-caption}
 # subtitle_text <- as.character(bquote("Simulated survival estimates of juveniles to IPTDS and Lower Granite Dam; " ~ 
 #                           phi[1] == .(phi1) ~ ", " ~ 
@@ -130,8 +243,6 @@ subtitle_text <- str_wrap(paste0(subtitle_text, param_text, ".$"),60)
 ```{r surv-ests, fig.cap = subtitle_text} 
 #'Simulated survival estimates of juveniles to IPTDS and Lower Granite Dam.'}
 ## survival
-labels <- ifelse(seq_along(unique(dat$n)) %% 2 == 0, "", unique(dat$n))
-
 dat %>%
   filter(param == 'Phi',
          time %in% c(1,2,3)) %>%
@@ -171,37 +282,4 @@ dat %>%
        x = 'Tags Released',
        y = 'Detection Probability')
 ```
-
-```{r summarize}
-df_sum <- dat %>%
-  group_by(param, time, occ, period, n) %>%
-  summarise(valid_sims = n_distinct(iter),
-            actual = mean(actual),
-            mu_estimate = mean(estimate),
-            sd_estimate = sd(estimate),
-            cv = sd_estimate/mu_estimate,
-            bias = mu_estimate - actual) %>%
-  ungroup()
-
-subtitle_text <- "$\\text{Coefficient of variation (CV) of simulated survival estimates. The blue line indicates a CV = 0.15}"
-subtitle_text <- str_wrap(paste0(subtitle_text, param_text, ".$"),60)
-```
-
-
-```{r precision, fig.cap = subtitle_text}
-## precision
-df_sum %>%
-  filter(param == 'Phi',
-         time %in% c(1, 2, 3)) %>%
-  ggplot(aes(x = as.factor(n), y = cv, group = period)) +
-  geom_line() +
-  geom_hline(yintercept = 0.15, colour = 'dodgerblue') +
-  scale_x_discrete(labels = labels) +
-  facet_wrap(~period, ncol = 2) + 
-  labs(#subtitle = 'Coefficient of variation around survival estimates.',
-       x = 'Tags Released',
-       y = 'Coefficient of Variation')
-```
-
-
 
