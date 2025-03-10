@@ -86,17 +86,23 @@ dat <- readRDS(file = '../data/power_analysis/juv_survival_power.rds')
 ```{r params}
 # Define parameters
 mark_size <- seq(100, 1500, by=100)  # Varying mark-release sizes
-phi1 <- 0.65  # Survival from marking to 1st recapture (time = 1, occ = 1)
-phi2 <- 0.35 # Survival from 1st to 2nd recapture
-phi3 <- .60
-p2 <- 0.10    # Detection probability at 1st recapture
-p3 <- 0.20    # Detection probability at 2nd recapture
-p4 <- 0.50
+phi <- c(0.75, 0.75, 0.50, 0.65) # Survival from marking to 1st recapture (time = 1, occ = 1)
+p <- c(0.20, 0.1, 0.4, 0.3)
+params <- c("$\\phi_1$", "$\\phi_2$", "$\\phi_3$", "$\\phi_4$", "$p_2$", "$p_3$", "$p_4$", "$p_5$")
 ```
 
 ```{r param-table}
-df_param <- tibble('Parameter' = c("$\\phi_1$", "$\\phi_2$", "$\\phi_3$", "$p_2$", "$p_3$", "$p_4$"),
-                   'True Value' = c(phi1, phi2, phi3, p2, p3, p4))
+df_param <- tibble('Time Period' = c('Survial from Marking to ESS/ZEN', 'Survival from ESS/ZEN to SFG', 'Survival from SFG to LGD', 'Survival from LGD to Detection Point Below', 'Detection at ESS/ZEN', 'Detection at SFG', 'Detection at LGD', 'Detection at Point Below'),
+                   'CJS Parameters' = params,
+                   'Range of Empirical Estimates' = c('0.43-0.97',
+                                                      '0.40-0.99',
+                                                      '0.30-.91',
+                                                      NA,
+                                                      '0.03-0.63',
+                                                      '0.00-0.18',
+                                                      '0.07-0.52',
+                                                      NA),
+                   'Simulated Values' = c(phi, p))
 
 df_param %>%
   kable(escape = FALSE) %>%  # escape = FALSE allows LaTeX/HTML math rendering
@@ -114,8 +120,9 @@ df_param %>%
 #                           rho[3] == .(p3)))
 
 # Use LaTeX-compatible string formatting for the figure caption
-subtitle_text <- "$\\text{Simulated survival estimates of juveniles to IPTDS and Lower Granite Dam;} \\, \\phi_1 = "
-subtitle_text <- str_wrap(paste0(subtitle_text, phi1, ", \\phi_2 = ", phi2, ", \\rho_2 = ", p2, ", \\text{ and } \\rho_3 = ", p3, "$"),60)
+subtitle_text <- "$\\text{Simulated survival estimates of juveniles to ESS/ZEN, SFG, and Lower Granite Dam;} \\, \\phi_i = "
+param_text <- paste('[',toString(phi[1:3]),']')
+subtitle_text <- str_wrap(paste0(subtitle_text, param_text, ".$"),60)
 
 ```
 
@@ -123,12 +130,15 @@ subtitle_text <- str_wrap(paste0(subtitle_text, phi1, ", \\phi_2 = ", phi2, ", \
 ```{r surv-ests, fig.cap = subtitle_text} 
 #'Simulated survival estimates of juveniles to IPTDS and Lower Granite Dam.'}
 ## survival
+labels <- ifelse(seq_along(unique(dat$n)) %% 2 == 0, "", unique(dat$n))
+
 dat %>%
   filter(param == 'Phi',
-         time %in% c(1,2)) %>%
+         time %in% c(1,2,3)) %>%
   ggplot(aes(x = as.factor(n), y = estimate)) +
     geom_boxplot() +
     geom_hline(aes(yintercept = actual), colour = 'firebrick') +
+    scale_x_discrete(labels = labels) +
   facet_wrap(~period, nrow = 2) + 
   labs(#subtitle = wrapped_subtitle,
        x = 'Tags Released',
@@ -136,11 +146,13 @@ dat %>%
 ```
 
 ```{r det-caption}
-subtitle_text <- as.character(bquote("Simulated detection estimates of juveniles at IPTDS and Lower Granite Dam; " ~ 
-                          rho[2] == .(p2) ~ ", and " ~ 
-                          rho[3] == .(p3)))
-subtitle_text <- "$\\text{Simulated detection estimates of juveniles at IPTDS and Lower Granite Dam;} \\, \\rho_2 = "
-subtitle_text <- str_wrap(paste0(subtitle_text, p2, ", \\rho_3 = ", p3, "$"),60)
+# subtitle_text <- as.character(bquote("Simulated detection estimates of juveniles at ESS/ZEN, SFG, and Lower Granite Dam; " ~ 
+#                           rho[2] == .(p2) ~ ", and " ~ 
+#                           rho[3] == .(p3)))
+
+subtitle_text <- "$\\text{Simulated detection estimates of juveniles at ESS/ZEN, SFG, and Lower Granite Dam;} \\, \\rho_i = "
+param_text <- paste('[',toString(p[1:3]),']')
+subtitle_text <- str_wrap(paste0(subtitle_text, param_text, ".$"),60)
 ```
 
 
@@ -149,15 +161,18 @@ subtitle_text <- str_wrap(paste0(subtitle_text, p2, ", \\rho_3 = ", p3, "$"),60)
 ## detection
 dat %>%
   filter(param == 'p',
-         time %in% c(2,3)) %>%
+         time %in% c(2, 3, 4)) %>%
   ggplot(aes(x = as.factor(n), y = estimate)) +
   geom_boxplot() +
   geom_hline(aes(yintercept = actual), colour = 'firebrick') +
+  scale_x_discrete(labels = labels) +
   facet_wrap(~period, nrow = 2) + 
   labs(#subtitle = wrapped_subtitle,
        x = 'Tags Released',
        y = 'Detection Probability')
+```
 
+```{r summarize}
 df_sum <- dat %>%
   group_by(param, time, occ, period, n) %>%
   summarise(valid_sims = n_distinct(iter),
@@ -167,18 +182,22 @@ df_sum <- dat %>%
             cv = sd_estimate/mu_estimate,
             bias = mu_estimate - actual) %>%
   ungroup()
+
+subtitle_text <- "$\\text{Coefficient of variation (CV) of simulated survival estimates. The blue line indicates a CV = 0.15}"
+subtitle_text <- str_wrap(paste0(subtitle_text, param_text, ".$"),60)
 ```
 
 
-```{r precision, fig.cap = 'Coefficient of variation around survival estimates.'}
+```{r precision, fig.cap = subtitle_text}
 ## precision
 df_sum %>%
   filter(param == 'Phi',
-         time %in% c(1,2)) %>%
+         time %in% c(1, 2, 3)) %>%
   ggplot(aes(x = as.factor(n), y = cv, group = period)) +
   geom_line() +
   geom_hline(yintercept = 0.15, colour = 'dodgerblue') +
-  facet_wrap(~period) + 
+  scale_x_discrete(labels = labels) +
+  facet_wrap(~period, ncol = 2) + 
   labs(#subtitle = 'Coefficient of variation around survival estimates.',
        x = 'Tags Released',
        y = 'Coefficient of Variation')
